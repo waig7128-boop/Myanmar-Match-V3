@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Myanmar Match — Admin Panel</title>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --primary: #0f172a;
+      --accent: #2563eb;
+      --danger: #dc2626;
+      --success: #16a34a;
+      --border: #e2e8f0;
+      --muted: #64748b;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+    body { background: var(--bg); color: var(--primary); padding-bottom: 40px; }
+    header {
+      background: var(--primary);
+      color: #fff;
+      padding: 16px 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    header h1 { font-size: 1.2rem; }
+    .container { max-width: 900px; margin: 20px auto; padding: 0 16px; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 18px; }
+    .stat-box {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+    }
+    .stat-label { font-size: 0.8rem; color: var(--muted); }
+    .stat-val { font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    .card h2 { font-size: 1.05rem; margin-bottom: 12px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    th { color: var(--muted); font-size: 0.8rem; }
+    button {
+      border: none;
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+      color: #fff;
+      margin-right: 4px;
+      margin-bottom: 4px;
+    }
+    .btn-ban { background: var(--danger); }
+    .btn-unban { background: var(--success); }
+    .btn-del { background: #475569; }
+    .btn-view { background: var(--accent); }
+    .pill-ok { background: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
+    .pill-ban { background: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 999px; font-size: 0.78rem; font-weight: 600; }
+    .room-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .msg-log {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px;
+      max-height: 280px;
+      overflow-y: auto;
+      font-size: 0.88rem;
+    }
+    .msg-row { padding: 6px 0; border-bottom: 1px dashed #e2e8f0; }
+    .msg-row:last-child { border-bottom: none; }
+    .table-wrap { overflow-x: auto; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Myanmar Match — Admin Panel</h1>
+    <span style="font-size:0.85rem; opacity:0.85;">Realtime Database Connected</span>
+  </header>
+
+  <div class="container">
+    <div class="stats">
+      <div class="stat-box">
+        <div class="stat-label">စုစုပေါင်း Users</div>
+        <div class="stat-val" id="totalUsersCount">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">ပိတ်သိမ်းထားသော အကောင့်</div>
+        <div class="stat-val" id="bannedUsersCount">0</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-label">Chat Rooms</div>
+        <div class="stat-val" id="totalRoomsCount">0</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>အသုံးပြုသူ စာရင်း (User Management)</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>အမည်</th>
+              <th>အသက် / ကျား-မ</th>
+              <th>မြို့/ဒေသ</th>
+              <th>အခြေအနေ</th>
+              <th>လုပ်ဆောင်ချက်</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <tr><td colspan="5">အချက်အလက်များ ဖတ်ယူနေပါသည်...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Chat မှတ်တမ်းများ (Chat Monitor)</h2>
+      <div class="room-list" id="roomsList"></div>
+      <div class="msg-log" id="messagesLog">Chat Room တစ်ခုကို ရွေးချယ်ကြည့်ရှုပါ။</div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-app.js";
+    import { getDatabase, ref, onValue, update, remove } from "https://www.gstatic.com/firebasejs/11.6.0/firebase-database.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCbke4sdMf-keLL1ewhn_oPY6-8A24vPW0",
+      authDomain: "myanmar-match-e7ff1.firebaseapp.com",
+      databaseURL: "https://myanmar-match-e7ff1-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "myanmar-match-e7ff1",
+      storageBucket: "myanmar-match-e7ff1.firebasestorage.app",
+      messagingSenderId: "435168329721",
+      appId: "1:435168329721:web:db37aca191d5c1f9ce0728",
+      measurementId: "G-J5CH1K8VTX"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    let usersData = {};
+    let messagesData = {};
+    let selectedRoomId = null;
+
+    const totalUsersCount = document.getElementById("totalUsersCount");
+    const bannedUsersCount = document.getElementById("bannedUsersCount");
+    const totalRoomsCount = document.getElementById("totalRoomsCount");
+    const usersTableBody = document.getElementById("usersTableBody");
+    const roomsList = document.getElementById("roomsList");
+    const messagesLog = document.getElementById("messagesLog");
+
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function renderUsers() {
+      const list = Object.values(usersData);
+      const banned = list.filter(u => u.banned);
+      totalUsersCount.textContent = list.length;
+      bannedUsersCount.textContent = banned.length;
+
+      if (list.length === 0) {
+        usersTableBody.innerHTML = `<tr><td colspan="5">User မှတ်တမ်း မရှိသေးပါ။</td></tr>`;
+        return;
+      }
+
+      usersTableBody.innerHTML = "";
+      for (const u of list) {
+        const tr = document.createElement("tr");
+        const isBanned = Boolean(u.banned);
+        tr.innerHTML = `
+          <td><strong>${escapeHtml(u.name || u.uid)}</strong><br><span style="font-size:0.75rem; color:#64748b;">${escapeHtml(u.uid)}</span></td>
+          <td>${escapeHtml(u.age || "-")} / ${escapeHtml(u.gender || "-")}</td>
+          <td>${escapeHtml(u.city || "-")}</td>
+          <td>${isBanned ? '<span class="pill-ban">Banned</span>' : '<span class="pill-ok">Active</span>'}</td>
+          <td>
+            <button class="${isBanned ? "btn-unban" : "btn-ban"}" data-toggle="${escapeHtml(u.uid)}">${isBanned ? "Unban" : "Ban"}</button>
+            <button class="btn-del" data-del="${escapeHtml(u.uid)}">Delete</button>
+          </td>
+        `;
+        tr.querySelector("[data-toggle]").addEventListener("click", async () => {
+          await update(ref(db, `users/${u.uid}`), { banned: !isBanned });
+        });
+        tr.querySelector("[data-del]").addEventListener("click", async () => {
+          if (!confirm(`"${u.name || u.uid}" ကို ဖျက်ပစ်မှာ သေချာပါသလား?`)) return;
+          await remove(ref(db, `users/${u.uid}`));
+        });
+        usersTableBody.appendChild(tr);
+      }
+    }
+
+    function renderMessages() {
+      const roomIds = Object.keys(messagesData);
+      totalRoomsCount.textContent = roomIds.length;
+      roomsList.innerHTML = "";
+
+      if (roomIds.length === 0) {
+        messagesLog.textContent = "Chat မှတ်တမ်း မရှိသေးပါ။";
+        return;
+      }
+
+      for (const roomId of roomIds) {
+        const btn = document.createElement("button");
+        btn.className = "btn-view";
+        const parts = roomId.split("__").map(id => (usersData[id] && usersData[id].name) ? usersData[id].name : id);
+        btn.textContent = parts.join(" ↔ ");
+        btn.addEventListener("click", () => {
+          selectedRoomId = roomId;
+          showRoomMessages(roomId);
+        });
+        roomsList.appendChild(btn);
+      }
+
+      if (selectedRoomId && messagesData[selectedRoomId]) {
+        showRoomMessages(selectedRoomId);
+      }
+    }
+
+    function showRoomMessages(roomId) {
+      const msgs = Object.values(messagesData[roomId] || {}).sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      if (msgs.length === 0) {
+        messagesLog.textContent = "ဤ Room ထဲတွင် စာများ မရှိပါ။";
+        return;
+      }
+      messagesLog.innerHTML = msgs.map(m => {
+        const timeStr = m.timestamp ? new Date(m.timestamp).toLocaleTimeString() : "";
+        return `<div class="msg-row"><strong>${escapeHtml(m.senderName || m.senderId)}</strong> <span style="color:#64748b; font-size:0.78rem;">(${escapeHtml(timeStr)})</span>: ${escapeHtml(m.text || "")}</div>`;
+      }).join("");
+    }
+
+    onValue(ref(db, "users"), (snap) => {
+      usersData = snap.val() || {};
+      renderUsers();
+      renderMessages();
+    });
+
+    onValue(ref(db, "messages"), (snap) => {
+      messagesData = snap.val() || {};
+      renderMessages();
+    });
+  </script>
+</body>
+</html>
