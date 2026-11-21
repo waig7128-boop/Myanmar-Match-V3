@@ -599,5 +599,100 @@
       });
     }
   </script>
+<!-- Login / Register Box UI ဥပမာ -->
+<div id="authBox" style="padding:12px; border:1px solid #ddd; border-radius:8px; margin-bottom:12px;">
+  <h3>အကောင့်ဝင်ရန် / မှတ်ပုံတင်ရန်</h3>
+  <input type="text" id="authUserId" placeholder="User ID (ဥပမာ- skb01)" style="width:100%; padding:8px; margin-bottom:8px;">
+  <input type="password" id="authPassword" placeholder="Password" style="width:100%; padding:8px; margin-bottom:8px;">
+  <button onclick="loginUser()">အကောင့်ဝင်မည် (Login)</button>
+  <button onclick="registerUser()">အကောင့်သစ်ဖွင့်မည်</button>
+  <button onclick="logoutUser()" id="logoutBtn" style="display:none;">ထွက်မည် (Logout)</button>
+  <p id="authStatus"></p>
+</div>
+
+<script>
+  // Firebase initialize လုပ်ပြီးသားဟု ယူဆပါသည် (ဥပမာ- const db = firebase.database();)
+
+  function setSession(userId, profileData) {
+    localStorage.setItem("mm_userId", userId);
+    localStorage.setItem("mm_profile", JSON.stringify(profileData || {}));
+    document.getElementById("logoutBtn").style.display = "inline-block";
+    document.getElementById("authStatus").innerText = "ဝင်ရောက်ထားသော ID: " + userId;
+  }
+
+  async function registerUser() {
+    const userId = document.getElementById("authUserId").value.trim();
+    const password = document.getElementById("authPassword").value.trim();
+    if (!userId || !password) {
+      alert("User ID နှင့် Password နှစ်ခုလုံး ရိုက်ထည့်ပါ။");
+      return;
+    }
+
+    const userRef = db.ref("users/" + userId);
+    const snap = await userRef.once("value");
+    if (snap.exists()) {
+      alert("ဤ User ID ရှိပြီးသား ဖြစ်နေပါသည်။ အခြား ID ရွေးပါ။");
+      return;
+    }
+
+    const newUser = {
+      id: userId,
+      password: password,
+      banned: false,
+      createdAt: Date.now()
+    };
+    await userRef.set(newUser);
+    setSession(userId, newUser);
+    alert("အကောင့်သစ် ဖွင့်ပြီးပါပြီ။");
+  }
+
+  async function loginUser() {
+    const userId = document.getElementById("authUserId").value.trim();
+    const password = document.getElementById("authPassword").value.trim();
+    if (!userId || !password) {
+      alert("User ID နှင့် Password ရိုက်ထည့်ပါ။");
+      return;
+    }
+
+    const snap = await db.ref("users/" + userId).once("value");
+    if (!snap.exists()) {
+      alert("User ID မရှိသေးပါ။ အကောင့်သစ်ဖွင့်ပါ။");
+      return;
+    }
+
+    const data = snap.val();
+    if (data.banned === true) {
+      alert("ဤအကောင့်ကို ပိတ်ပင်ထားပါသည်။");
+      return;
+    }
+    if (data.password !== password) {
+      alert("Password မှားယွင်းနေပါသည်။");
+      return;
+    }
+
+    setSession(userId, data);
+    alert("အောင်မြင်စွာ ဝင်ရောက်ပြီးပါပြီ။");
+  }
+
+  function logoutUser() {
+    localStorage.removeItem("mm_userId");
+    localStorage.removeItem("mm_profile");
+    document.getElementById("logoutBtn").style.display = "none";
+    document.getElementById("authStatus").innerText = "အကောင့်မှ ထွက်ထားပါသည်။";
+  }
+
+  // Page ဖွင့်ချိန် Session ပြန်စစ်ခြင်း
+  window.addEventListener("DOMContentLoaded", async () => {
+    const savedId = localStorage.getItem("mm_userId");
+    if (savedId) {
+      const snap = await db.ref("users/" + savedId).once("value");
+      if (snap.exists() && snap.val().banned !== true) {
+        setSession(savedId, snap.val());
+      } else {
+        logoutUser();
+      }
+    }
+  });
+</script>
 </body>
 </html>
