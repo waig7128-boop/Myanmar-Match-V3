@@ -694,5 +694,135 @@
     }
   });
 </script>
+<!-- Profile ဘေးမှာ ထည့်ပြနိုင်မယ့် Badge (header ထဲက Skb (Ygn) နားမှာ ရွှေ့ထည့်လို့ရတယ်) -->
+<span id="mmProfileIdBadge" style="display:inline-block;margin-left:6px;padding:2px 8px;border-radius:999px;background:#ffe4e6;color:#be123c;font-size:12px;font-weight:bold;">
+  ID: ---
+</span>
+
+<div id="mmProfileAuthCard" style="max-width:420px;margin:12px auto;padding:14px;background:#fff;border:1px solid #f3d5de;border-radius:12px;">
+  <h3 style="margin:0 0 10px;font-size:16px;">အကောင့်ဖွင့်ရန် / ဝင်ရန်</h3>
+
+  <input id="regName" type="text" placeholder="နာမည် (Name)" style="width:100%;padding:8px;margin-bottom:8px;border:1px solid #ddd;border-radius:8px;">
+  <input id="regAge" type="number" placeholder="အသက် (ဥပမာ- 25)" style="width:100%;padding:8px;margin-bottom:8px;border:1px solid #ddd;border-radius:8px;">
+  <input id="regLocation" type="text" placeholder="နေရပ် (ဥပမာ- ရွှေဘို / ရန်ကုန်)" style="width:100%;padding:8px;margin-bottom:8px;border:1px solid #ddd;border-radius:8px;">
+
+  <select id="regSex" style="width:100%;padding:8px;margin-bottom:8px;border:1px solid #ddd;border-radius:8px;">
+    <option value="">Sex ရွေးပါ</option>
+    <option value="Male">Male</option>
+    <option value="Female">Female</option>
+  </select>
+
+  <input id="regHobby" type="text" placeholder="Hobby (ဥပမာ- ဂီတာတီး၊ ဘောလုံး)" style="width:100%;padding:8px;margin-bottom:8px;border:1px solid #ddd;border-radius:8px;">
+  <input id="regPass" type="password" placeholder="Password သတ်မှတ်ပါ" style="width:100%;padding:8px;margin-bottom:10px;border:1px solid #ddd;border-radius:8px;">
+
+  <div style="display:flex;gap:8px;">
+    <button id="btnCreateAccount" type="button" style="flex:1;padding:10px;border:none;border-radius:8px;background:#e11d48;color:#fff;font-weight:bold;">
+      အကောင့်ဖွင့်မည်
+    </button>
+    <button id="btnQuickLogin" type="button" style="flex:1;padding:10px;border:none;border-radius:8px;background:#1f2937;color:#fff;font-weight:bold;">
+      ရှိပြီးသား ID နဲ့ဝင်မည်
+    </button>
+  </div>
+
+  <p id="mmAuthFeedback" style="margin:8px 0 0;font-size:13px;color:#be123c;"></p>
+</div>
+
+<script type="module">
+  import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+  const badgeEl = document.getElementById("mmProfileIdBadge");
+  const msgEl = document.getElementById("mmAuthFeedback");
+
+  function getDbInstance() {
+    if (typeof db !== "undefined" && db) return db;
+    if (window.mmDb) return window.mmDb;
+    return getDatabase();
+  }
+
+  function generateUserId() {
+    const rand = Math.floor(1000 + Math.random() * 9000);
+    return "MM" + rand;
+  }
+
+  function showIdBesideProfile(uid) {
+    if (badgeEl) badgeEl.textContent = "ID: " + uid;
+    localStorage.setItem("mm_current_uid", uid);
+  }
+
+  document.getElementById("btnCreateAccount").addEventListener("click", async () => {
+    const name = document.getElementById("regName").value.trim();
+    const age = document.getElementById("regAge").value.trim();
+    const location = document.getElementById("regLocation").value.trim();
+    const sex = document.getElementById("regSex").value;
+    const hobby = document.getElementById("regHobby").value.trim();
+    const password = document.getElementById("regPass").value;
+
+    if (!name || !age || !location || !sex || !hobby || !password) {
+      msgEl.textContent = "Name၊ အသက်၊ နေရပ်၊ Sex၊ Hobby နဲ့ Password အားလုံး ဖြည့်ပါ။";
+      return;
+    }
+
+    try {
+      const database = getDbInstance();
+      let uid = generateUserId();
+      let snap = await get(ref(database, "users/" + uid));
+      while (snap.exists()) {
+        uid = generateUserId();
+        snap = await get(ref(database, "users/" + uid));
+      }
+
+      await set(ref(database, "users/" + uid), {
+        id: uid,
+        name,
+        age: Number(age),
+        location,
+        sex,
+        hobby,
+        password,
+        banned: false,
+        createdAt: Date.now()
+      });
+
+      showIdBesideProfile(uid);
+      msgEl.textContent = "အကောင့်ဖွင့်ပြီးပါပြီ! ကိုယ့် ID က " + uid + " ဖြစ်ပါတယ်။";
+    } catch (err) {
+      msgEl.textContent = "Error: " + err.message;
+    }
+  });
+
+  document.getElementById("btnQuickLogin").addEventListener("click", async () => {
+    const uid = prompt("ဝင်မယ့် ID ရိုက်ထည့်ပါ (ဥပမာ- MM1234):");
+    const pass = document.getElementById("regPass").value;
+    if (!uid || !pass) {
+      msgEl.textContent = "Password ကွက်မှာ Password ရိုက်ပြီး ID ထည့်ပေးပါ။";
+      return;
+    }
+
+    try {
+      const database = getDbInstance();
+      const snap = await get(ref(database, "users/" + uid.trim()));
+      if (!snap.exists()) {
+        msgEl.textContent = "ဒီ ID မရှိသေးပါ။";
+        return;
+      }
+      const data = snap.val();
+      if (data.banned === true) {
+        msgEl.textContent = "ဒီအကောင့်ကို ပိတ်ထားပါတယ်။";
+        return;
+      }
+      if (data.password !== pass) {
+        msgEl.textContent = "Password မှားနေပါတယ်။";
+        return;
+      }
+      showIdBesideProfile(uid.trim());
+      msgEl.textContent = "ဝင်ရောက်ပြီးပါပြီ — ID: " + uid.trim();
+    } catch (err) {
+      msgEl.textContent = "Error: " + err.message;
+    }
+  });
+
+  const savedUid = localStorage.getItem("mm_current_uid");
+  if (savedUid) showIdBesideProfile(savedUid);
+</script>
 </body>
 </html>
